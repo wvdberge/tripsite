@@ -45,10 +45,13 @@ seeded on the NAS, so no personal data (partner name, notes) ever hits GitHub.
    git clone https://github.com/wvdberge/tripsite.git
    ```
 
-2. **Build + start the container** (`sudo` needed):
+2. **Build + start the container** (`sudo` needed). Create the `data/` folder
+   first — it is gitignored, so a fresh clone doesn't have it, and Compose will
+   not create a bind-mount source on its own:
 
    ```sh
    cd /volume1/docker/tripsite
+   mkdir -p data backup
    sudo docker compose up -d --build     # or: sudo docker-compose up -d --build
    ```
 
