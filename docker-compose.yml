@@ -2,7 +2,12 @@
 # built there (sudo docker compose up -d --build). No internet exposure.
 services:
   tripsite:
-    build: .
+    build:
+      context: .
+      # Synology's DNS resolver (192.168.1.202) rejects queries from the default
+      # docker bridge, so pip can't resolve pypi during build. Building on the
+      # host network routes DNS through the host, which resolves fine.
+      network: host
     image: tripsite:latest
     container_name: tripsite
     restart: unless-stopped
