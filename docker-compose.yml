@@ -1,0 +1,14 @@
+# LAN-only trip-planning site. Cloned onto the NAS into /volume1/docker and
+# built there (sudo docker compose up -d --build). No internet exposure.
+services:
+  tripsite:
+    build: .
+    image: tripsite:latest
+    container_name: tripsite
+    restart: unless-stopped
+    ports:
+      - "8027:8000"          # reach it at http://<nas-ip>:8027 on home wifi
+    volumes:
+      - ./data:/data          # trip.db lives here (persists across rebuilds)
+    environment:
+      - TRIPSITE_DB=/data/trip.db

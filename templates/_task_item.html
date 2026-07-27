@@ -1,0 +1,7 @@
+<li class="task-item {{ 'done' if t.done }}" style="display:flex;gap:.5rem;align-items:center">
+  <form class="inline" hx-post="{{ url_for('toggle_task', task_id=t.id) }}"
+        hx-target="closest .task-item" hx-swap="outerHTML">
+    <button class="ghost small" type="submit" title="Toggle">{{ '✓' if t.done else '☐' }}</button>
+  </form>
+  <span>{{ t.title }}</span>
+</li>

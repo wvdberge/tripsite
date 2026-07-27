@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Who are you?{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Who are you?</h1>
+  <p class="muted">Pick your name. It stamps what you add and shows up in the feed. No password.</p>
+  <div class="pickers">
+    {% for p in people %}
+    <form method="post">
+      <input type="hidden" name="person_id" value="{{ p.id }}">
+      <button type="submit">{{ p.name }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

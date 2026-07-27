@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Ideas{% endblock %}
+{% block content %}
+<h1>Ideas</h1>
+
+<div class="card">
+  <h2 style="margin-top:0">Add an idea</h2>
+  <form method="post" action="{{ url_for('add_idea') }}">
+    <input type="text" name="title" placeholder="What's the idea? (required)" required>
+    <div class="row">
+      <input type="text" name="location" placeholder="Place (optional)">
+      <input type="url" name="url" placeholder="Link (optional)">
+    </div>
+    <textarea name="notes" placeholder="Notes (optional)"></textarea>
+    <div style="margin-top:.5rem"><button type="submit">Add idea</button></div>
+  </form>
+</div>
+
+<p>
+  <a href="{{ url_for('ideas') }}" class="btn ghost small {{ 'booked' if not status }}">All</a>
+  {% for s in statuses %}
+  <a href="{{ url_for('ideas', status=s) }}" class="btn ghost small">{{ s }}</a>
+  {% endfor %}
+</p>
+
+<table>
+  <thead><tr><th>Idea</th><th>Base</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for i in ideas %}
+    <tr>
+      <td>
+        <a href="{{ url_for('idea_detail', idea_id=i.id) }}">{{ i.title }}</a>
+        {% if i.pinned_date %}<span class="pin-tag">📌 {{ i.pinned_date }}</span>{% endif %}
+        {% if i.notes %}<div class="muted small">{{ i.notes[:90] }}{% if i.notes|length > 90 %}…{% endif %}</div>{% endif %}
+      </td>
+      <td class="small">{{ i.leg_name or '—' }}</td>
+      <td>{% include "_idea_status.html" %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" class="muted">No ideas{% if status %} with status "{{ status }}"{% endif %}.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

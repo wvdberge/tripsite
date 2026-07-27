@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ i.title }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('ideas') }}">← Ideas</a></p>
+<h1>{{ i.title }}</h1>
+<p>{% include "_idea_status.html" %}
+  {% if i.author %}<span class="muted small">· added by {{ i.author }}</span>{% endif %}</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Edit</h2>
+  <form method="post">
+    <label>Title</label>
+    <input type="text" name="title" value="{{ i.title }}">
+    <div class="row">
+      <div><label>Location</label>
+        <input type="text" name="location" value="{{ i.location or '' }}"></div>
+      <div><label>Link</label>
+        <input type="url" name="url" value="{{ i.url or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Base (leg)</label>
+        <select name="leg_id">
+          <option value="">— none —</option>
+          {% for l in legs %}
+          <option value="{{ l.id }}" {% if i.leg_id == l.id %}selected{% endif %}>{{ l.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div><label>Pin to day</label>
+        <select name="pinned_date">
+          <option value="">— not pinned —</option>
+          {% for d in days %}
+          <option value="{{ d.date }}" {% if i.pinned_date == d.date %}selected{% endif %}>{{ fmt_date(d.date) }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <label>Notes</label>
+    <textarea name="notes">{{ i.notes or '' }}</textarea>
+    <div style="margin-top:.5rem"><button type="submit">Save</button>
+      {% if i.url %} <a class="btn ghost" href="{{ i.url }}" target="_blank" rel="noopener">Open link ↗</a>{% endif %}</div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Tasks</h2>
+  {% if tasks %}
+  <ul class="clean">
+    {% for t in tasks %}<li class="{{ 'done' if t.done }}">{{ '✓' if t.done else '☐' }} {{ t.title }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post" action="{{ url_for('add_task') }}" class="row" style="margin-top:.5rem">
+    <input type="hidden" name="idea_id" value="{{ i.id }}">
+    <input type="text" name="title" placeholder="Add a task for this idea" style="flex:3">
+    <button type="submit">Add</button>
+  </form>
+</div>
+{% endblock %}

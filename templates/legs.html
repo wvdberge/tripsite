@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Route{% endblock %}
+{% block content %}
+<h1>Route</h1>
+<p class="muted small">Christchurch → Auckland, south to north. 17 stops, 38 nights.</p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Stop</th><th>Dates</th><th class="num">Nights</th><th>Accommodation</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    {% for l in legs %}
+    <tr>
+      <td>{{ l.seq }}</td>
+      <td><a href="{{ url_for('leg_detail', leg_id=l.id) }}">{{ l.name }}</a></td>
+      <td class="small">{{ fmt_date(l.start_date) }} – {{ fmt_date(l.end_date) }}</td>
+      <td class="num">{{ l.nights }}</td>
+      <td class="small">{{ l.accommodation or '—' }}{% if l.confirmation_ref %} <span class="muted">{{ l.confirmation_ref }}</span>{% endif %}</td>
+      <td><span class="pill {{ l.accommodation_status }}">{{ l.accommodation_status }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

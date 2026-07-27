@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Map{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='leaflet/leaflet.css') }}">
+<script src="{{ url_for('static', filename='leaflet/leaflet.js') }}"></script>
+{% endblock %}
+{% block content %}
+<h1>Map</h1>
+<p class="muted small">Numbered stops in route order; ideas colored by status
+  (<span style="color:#6b7280">idea</span>,
+  <span style="color:#3182ce">agreed</span>,
+  <span style="color:#2f855a">booked</span>). Tap a marker for its page.</p>
+<div id="map"></div>
+
+<script>
+  L.Icon.Default.imagePath = "{{ url_for('static', filename='leaflet/') }}";
+  const legs = {{ legs|tojson }};
+  const ideas = {{ ideas|tojson }};
+
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  const bounds = [];
+
+  // Route polyline in seq order
+  const line = legs.map(l => [l.lat, l.lon]);
+  if (line.length) L.polyline(line, {color: '#2b6cb0', weight: 3, opacity: .7}).addTo(map);
+
+  // Numbered leg markers
+  legs.forEach(l => {
+    const icon = L.divIcon({
+      className: '', html: '<div class="legpin">' + l.seq + '</div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    L.marker([l.lat, l.lon], {icon: icon}).addTo(map)
+      .bindPopup('<strong>' + l.seq + '. ' + l.name + '</strong><br>' +
+                 '<span class="pill ' + l.accommodation_status + '">' +
+                 l.accommodation_status + '</span><br>' +
+                 '<a href="/legs/' + l.id + '">Open leg →</a>');
+    bounds.push([l.lat, l.lon]);
+  });
+
+  // Idea markers, colored by status
+  const colors = {idea: '#6b7280', agreed: '#3182ce', booked: '#2f855a'};
+  ideas.forEach(i => {
+    L.circleMarker([i.lat, i.lon], {
+      radius: 6, color: '#fff', weight: 1.5,
+      fillColor: colors[i.status] || '#6b7280', fillOpacity: 1
+    }).addTo(map)
+      .bindPopup('<strong>' + i.title + '</strong><br>' +
+                 '<span class="pill ' + i.status + '">' + i.status + '</span><br>' +
+                 '<a href="/ideas/' + i.id + '">Open idea →</a>');
+    bounds.push([i.lat, i.lon]);
+  });
+
+  if (bounds.length) map.fitBounds(bounds, {padding: [30, 30]});
+  else map.setView([-42, 172], 5);
+</script>
+{% endblock %}

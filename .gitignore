@@ -1,0 +1,9 @@
+.venv/
+data/
+*.db
+*.db-wal
+*.db-shm
+trip-backup.db
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Costs{% endblock %}
+{% block content %}
+<h1>Costs</h1>
+<p class="muted small">Roll-ups in EUR at {{ '%.4f'|format(trip.fx_nzd_eur) }} EUR per NZD.</p>
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ by_kind.booked|eur }}</div><div class="l">booked</div></div>
+  <div class="stat"><div class="n">{{ by_kind.estimated|eur }}</div><div class="l">estimated</div></div>
+  <div class="stat"><div class="n">{{ by_kind.actual|eur }}</div><div class="l">actual</div></div>
+  <div class="stat">
+    <div class="n">{{ total|eur }}</div>
+    <div class="l">total{% if trip.budget_eur %} of {{ trip.budget_eur|eur }} budget{% endif %}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h2 style="margin-top:0">By category</h2>
+  <table>
+    <tbody>
+    {% for cat, amt in by_cat|dictsort %}
+    <tr><td>{{ cat }}</td><td class="num">{{ amt|eur }}</td></tr>
+    {% endfor %}
+    <tr><td><strong>Total</strong></td><td class="num"><strong>{{ total|eur }}</strong></td></tr>
+    </tbody>
+  </table>
+  {% if trip.budget_eur %}
+  <p class="small muted" style="margin-top:.5rem">
+    {{ (trip.budget_eur - total)|eur }} under budget
+    ({{ (100 * total / trip.budget_eur)|round|int }}% of {{ trip.budget_eur|eur }}).
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Lines</h2>
+  <table>
+    <thead><tr><th>Label</th><th>Kind</th><th>Base</th><th class="num">Native</th><th class="num">EUR</th><th></th></tr></thead>
+    <tbody>
+    {% for c in lines %}
+    <tr>
+      <td>{{ c.label }}<div class="muted small">{{ c.category }}</div></td>
+      <td class="small">{{ c.kind }}</td>
+      <td class="small">{{ c.leg_name or '—' }}</td>
+      <td class="num">{{ c.currency }} {{ '%.0f'|format(c.amount) }}</td>
+      <td class="num">{{ c.eur|eur }}</td>
+      <td>
+        <form method="post" action="{{ url_for('delete_cost', cost_id=c.id) }}" class="inline"
+              onsubmit="return confirm('Remove this cost line?')">
+          <button class="danger small" type="submit">×</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Add a cost</h2>
+  <form method="post" action="{{ url_for('add_cost') }}">
+    <input type="text" name="label" placeholder="Label (required)" required>
+    <div class="row">
+      <div><label>Amount</label><input type="number" step="0.01" name="amount" required></div>
+      <div><label>Currency</label>
+        <select name="currency"><option>NZD</option><option>EUR</option></select></div>
+      <div><label>Kind</label>
+        <select name="kind"><option>estimated</option><option>booked</option><option>actual</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>Category</label>
+        <select name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <div><label>Base (optional)</label>
+        <select name="leg_id"><option value="">— none —</option>
+          {% for l in legs %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></div>
+    </div>
+    <div style="margin-top:.5rem"><button type="submit">Add cost</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Exchange rate</h2>
+  <form method="post" action="{{ url_for('set_fx') }}" class="row">
+    <div><label>EUR per NZD</label>
+      <input type="number" step="0.0001" name="fx" value="{{ '%.4f'|format(trip.fx_nzd_eur) }}"></div>
+    <div style="align-self:end"><button type="submit">Update rate</button></div>
+  </form>
+</div>
+{% endblock %}

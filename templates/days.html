@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Days{% endblock %}
+{% block content %}
+<h1>Days</h1>
+<p class="muted small">Feb 8 – Mar 20, 2027. Grouped by where you sleep that night.</p>
+
+{% for leg, dayrows, key in groups %}
+<div class="leg-group">
+  <div class="leg-head">
+    {% if leg %}
+      <h2><a href="{{ url_for('leg_detail', leg_id=leg.id) }}">{{ leg.name }}</a></h2>
+      <span class="pill {{ leg.accommodation_status }}">{{ leg.accommodation_status }}</span>
+    {% else %}
+      <h2 class="muted">Travel / Singapore (no base)</h2>
+    {% endif %}
+  </div>
+  {% for d in dayrows %}
+  <div class="day-row">
+    <div class="date"><a href="{{ url_for('day_detail', d=d.date) }}">{{ fmt_date(d.date) }}</a></div>
+    <div class="body">
+      {% if d.energy %}<span class="energy {{ d.energy }}">{{ energy_labels[d.energy] }}</span>{% endif %}
+      {% if d.note %}<span class="small">{{ d.note[:80] }}{% if d.note|length > 80 %}…{% endif %}</span>{% endif %}
+      <div class="pins">
+        {% for i in pinned.get(d.date, []) %}
+          <a class="pin-tag" href="{{ url_for('idea_detail', idea_id=i.id) }}">📌 {{ i.title }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

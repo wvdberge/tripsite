@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ leg.name }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('legs') }}">← Route</a></p>
+<h1>{{ leg.seq }}. {{ leg.name }}</h1>
+<p class="muted">{{ fmt_date(leg.start_date) }} – {{ fmt_date(leg.end_date) }} · {{ leg.nights }} nights
+  {% if leg.location %}· {{ leg.location }}{% endif %}</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Accommodation</h2>
+  <form method="post">
+    <label>Accommodation</label>
+    <input type="text" name="accommodation" value="{{ leg.accommodation or '' }}" placeholder="Where you're staying">
+    <div class="row">
+      <div>
+        <label>Status</label>
+        <select name="accommodation_status">
+          {% for s in accom_statuses %}
+          <option value="{{ s }}" {% if leg.accommodation_status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Confirmation ref</label>
+        <input type="text" name="confirmation_ref" value="{{ leg.confirmation_ref or '' }}" placeholder="#180797">
+      </div>
+    </div>
+    <label>Notes</label>
+    <textarea name="notes">{{ leg.notes or '' }}</textarea>
+    <div style="margin-top:.5rem"><button type="submit">Save</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Tasks here</h2>
+  {% if tasks %}
+  <ul class="clean">
+    {% for t in tasks %}<li class="{{ 'done' if t.done }}">{{ '✓' if t.done else '☐' }} {{ t.title }}</li>{% endfor %}
+  </ul>
+  {% else %}<p class="muted small">No tasks attached.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Costs here</h2>
+  {% if costs %}
+  <table>
+    <tbody>
+    {% for c in costs %}
+    <tr><td>{{ c.label }}</td><td class="small">{{ c.kind }}</td>
+      <td class="num">{{ c.currency }} {{ '%.0f'|format(c.amount) }}</td>
+      <td class="num muted">{{ c.eur|eur }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted small">No costs attached.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Ideas nearby</h2>
+  {% if ideas %}
+  <ul class="clean">
+    {% for i in ideas %}
+    <li><a href="{{ url_for('idea_detail', idea_id=i.id) }}">{{ i.title }}</a>
+      <span class="pill {{ i.status }}">{{ i.status }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted small">No ideas attached to this base.</p>{% endif %}
+</div>
+{% endblock %}

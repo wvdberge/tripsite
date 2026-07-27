@@ -1,0 +1,10 @@
+<span class="idea-status" style="white-space:nowrap">
+  <span class="pill {{ i.status }}">{{ i.status }}</span>
+  <select name="status" style="width:auto;display:inline-block;padding:.15rem .3rem"
+          hx-post="{{ url_for('idea_status', idea_id=i.id) }}"
+          hx-target="closest .idea-status" hx-swap="outerHTML" hx-trigger="change">
+    {% for s in statuses %}
+    <option value="{{ s }}" {% if i.status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+</span>

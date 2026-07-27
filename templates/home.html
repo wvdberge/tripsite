@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<h1>{{ trip.name }}</h1>
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ countdown }}</div><div class="l">days to departure</div></div>
+  <div class="stat"><div class="n">{{ booked_nights }}/{{ total_nights }}</div><div class="l">nights booked</div></div>
+  <div class="stat"><div class="n">{{ booked_eur|eur }}</div><div class="l">booked of {{ est_eur|eur }} est.</div></div>
+  <div class="stat"><div class="n">{{ open_tasks }}</div><div class="l">open tasks</div></div>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h2 style="margin-top:0">What's new</h2>
+  {% if events %}
+  <ul class="feed">
+    {% for e in events %}
+    <li>
+      <div>{{ e.summary }}</div>
+      <div class="ts">{{ e.ts[:16]|replace("T", " ") }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing yet. Add an idea or pin something to a day.</p>
+  {% endif %}
+</div>
+{% endblock %}
