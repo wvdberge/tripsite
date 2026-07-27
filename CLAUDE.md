@@ -28,56 +28,43 @@ markdown files in `../` (those were imported once).
 - **htmx** returns small partials (`_idea_status.html`, `_task_item.html`) for
   inline swaps; everything else is plain forms + redirects.
 
-## Adding or replacing a trip — read this before you touch it
+## Adding a trip = build multi-trip support (do this, always)
 
-**This app is single-trip by design (PLAN.md decision #2).** The `trip` table
-holds one row as a hedge. Two facts make "just add another trip" break silently:
+**Standing decision from Wiljan: a new trip is added by extending the app to
+hold multiple trips at once — never by wiping and replacing.** Every past trip
+(NZ 2027, London, the UK cycle trip, whatever comes next) stays in the app.
+Keeping that history is the whole point; do not throw it away to fit a new trip.
+
+The app is single-trip *today* (PLAN.md decision #2): the `trip` table holds one
+row and nothing scopes by it yet. So the first session that adds a second trip
+builds proper multi-trip. Two facts make a naive "insert another trip row" break
+silently — they are the work to do, not reasons to avoid it:
 
 1. **No read query filters by `trip_id`.** Every list view (`SELECT * FROM leg
    ORDER BY seq`, `... FROM day`, `... FROM cost`, `... FROM event`, tasks,
-   ideas) reads the whole table. `trip_id` is only ever *written*. A second trip
-   row → both trips' legs/days/costs/ideas/events appear mixed in every view.
+   ideas) reads the whole table; `trip_id` is only ever *written*. Add a second
+   trip and both trips' rows appear mixed in every view.
 2. **`day.date` is globally `UNIQUE`** (schema.sql). Two trips can't hold the
    same calendar date, and day queries aren't trip-scoped anyway.
 
-So there are two real paths, not one.
+### What to build (scope it as a feature — don't half-build it)
 
-### Path A — Reuse the app for the next trip (the easy, supported one)
+- **Active-trip selector** — a cookie like the person picker, plus a trip
+  switcher in `base.html`. `load_person` currently hardcodes the lowest-id trip
+  (`SELECT * FROM trip ORDER BY id LIMIT 1`); replace that with the chosen trip.
+- **Scope every read by the active `trip_id`** — grep app.py for `FROM leg`,
+  `FROM day`, `FROM idea`, `FROM cost`, `FROM task`, `FROM event` (none filter
+  today), plus the feed, home stats, and the costs roll-up.
+- **Schema:** `day.date UNIQUE` → `UNIQUE(trip_id, date)`; generate days per
+  trip; scope all day queries by trip. Migrate the existing NZ rows — back up the
+  live DB and confirm the Dropbox copy first (see `tech_setup/Tripsite-Setup.md`).
+- **Add-a-trip flow** — a "create trip" form (name, dates, fx, budget) that
+  generates that trip's days, plus a per-trip way to seed legs/ideas.
+  `import_data.py` currently hardcodes NZ constants and only runs with `--wipe`;
+  generalise it (parameterise the dataset, drop the wipe) or add a UI path.
 
-Use this when NZ 2027 is done (or shelved) and you want the same app for another
-trip. It **replaces** the data; it does not run two trips at once.
-
-1. **Back up first — the DB is the only copy of the plan.** On the NAS:
-   `cp /volume1/docker/tripsite/data/trip.db /volume1/docker/tripsite/backup/trip-nz2027-archive.db`
-   (and confirm it's in Dropbox via the nightly job). `import_data.py --wipe`
-   destroys the current trip.
-2. **Edit `import_data.py` constants** for the new trip: `TRIP` (name, dates,
-   fx, budget), `LEGS`, `COSTS`, `TASKS`, `IDEAS`. Add any new destinations'
-   coordinates to `seed/places.py` (no geocoding API — hand-set lat/lon).
-3. **Reseed:** locally `python import_data.py --wipe --partner "Annick"`, or on
-   the NAS `sudo docker exec tripsite python import_data.py --wipe --partner
-   "Annick"`. The importer refuses to run without `--wipe` (guards against
-   duplicate rows).
-4. No code or container changes needed — the views are trip-agnostic because
-   there's only ever one trip.
-
-### Path B — True multi-trip (a real feature, not a config change)
-
-Only if Wiljan wants NZ 2027 *and* another trip live at once. This is explicitly
-out of scope in PLAN.md and is a genuine build. What it requires, at minimum:
-
-- Scope **every** read query by the active `trip_id` (grep app.py for `FROM leg`,
-  `FROM day`, `FROM idea`, `FROM cost`, `FROM task`, `FROM event` — none filter
-  today).
-- An "active trip" selector (a cookie like the person picker) + a trip switcher
-  in `base.html`; `load_person` currently hardcodes the lowest-id trip.
-- Schema change: `day.date UNIQUE` → `UNIQUE(trip_id, date)`, and generate days
-  per trip; scope all day queries by trip.
-- `import_data.py` without `--wipe` (append a trip), or a small "create trip" UX.
-- Scope the feed, home stats, and costs roll-up by trip.
-
-Don't half-build this. If asked, scope it as a feature with Wiljan, don't bolt a
-second trip row onto the current single-trip queries.
+**Never run `import_data.py --wipe` to "add" a trip.** `--wipe` drops every
+table; it is a dev/reset tool only and it destroys all trips at once.
 
 ## Working on it
 
