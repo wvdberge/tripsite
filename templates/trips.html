@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Trips{% endblock %}
+{% block content %}
+<h1>Trips</h1>
+<p class="muted small">Tap a trip to make it active. Everything else on the site
+  shows the active trip.</p>
+
+<table>
+  <thead>
+    <tr><th>Trip</th><th>Dates</th><th>Currency</th><th class="num">Nights booked</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for t in trips %}
+    <tr>
+      <td>
+        {{ t.name }}
+        {% if t.id == active_id %}<span class="pill booked">active</span>{% endif %}
+      </td>
+      <td class="small">{{ fmt_date(t.start_date) }} – {{ fmt_date(t.end_date) }}</td>
+      <td class="small">{{ t.currency }}{% if t.currency != 'EUR' %} @ {{ '%.4f'|format(t.fx_to_eur) }}{% endif %}</td>
+      <td class="num">{{ t.booked_nights }}/{{ t.total_nights }}</td>
+      <td>
+        {% if t.id != active_id %}
+        <form method="post" action="{{ url_for('switch_trip', trip_id=t.id) }}" class="inline">
+          <button type="submit">Switch</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="card">
+  <h2 style="margin-top:0">Create a trip</h2>
+  <form method="post" action="{{ url_for('create_trip') }}">
+    <input type="text" name="name" placeholder="Trip name (required)" required>
+    <div class="row">
+      <div><label>Start date</label><input type="date" name="start_date" required></div>
+      <div><label>End date</label><input type="date" name="end_date" required></div>
+    </div>
+    <div class="row">
+      <div><label>Currency</label><input type="text" name="currency" value="EUR" maxlength="3" style="text-transform:uppercase"></div>
+      <div><label>EUR per unit</label><input type="number" step="0.0001" name="fx_to_eur" value="1.0"></div>
+      <div><label>Budget (EUR, optional)</label><input type="number" step="1" name="budget_eur"></div>
+    </div>
+    <p class="muted small" style="margin:.5rem 0">Use EUR / 1.0 for a euro trip.
+      One day row is created per date. Legs, ideas, costs and tasks start empty
+      (add them through the site or a seed module).</p>
+    <div><button type="submit">Create trip</button></div>
+  </form>
+</div>
+{% endblock %}

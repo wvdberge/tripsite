@@ -2,7 +2,9 @@
 {% block title %}Route{% endblock %}
 {% block content %}
 <h1>Route</h1>
-<p class="muted small">Christchurch → Auckland, south to north. 17 stops, 38 nights.</p>
+{% if legs %}
+<p class="muted small">{{ legs[0].name }} → {{ legs[-1].name }}. {{ legs|length }} stops, {{ legs|sum(attribute='nights') }} nights.</p>
+{% endif %}
 <table>
   <thead>
     <tr><th>#</th><th>Stop</th><th>Dates</th><th class="num">Nights</th><th>Accommodation</th><th>Status</th></tr>

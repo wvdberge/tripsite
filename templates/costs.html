@@ -2,7 +2,11 @@
 {% block title %}Costs{% endblock %}
 {% block content %}
 <h1>Costs</h1>
-<p class="muted small">Roll-ups in EUR at {{ '%.4f'|format(trip.fx_nzd_eur) }} EUR per NZD.</p>
+{% if trip.currency == 'EUR' %}
+<p class="muted small">Roll-ups in EUR (single currency).</p>
+{% else %}
+<p class="muted small">Roll-ups in EUR at {{ '%.4f'|format(trip.fx_to_eur) }} EUR per {{ trip.currency }}.</p>
+{% endif %}
 
 <div class="stats">
   <div class="stat"><div class="n">{{ by_kind.booked|eur }}</div><div class="l">booked</div></div>
@@ -63,7 +67,10 @@
     <div class="row">
       <div><label>Amount</label><input type="number" step="0.01" name="amount" required></div>
       <div><label>Currency</label>
-        <select name="currency"><option>NZD</option><option>EUR</option></select></div>
+        <select name="currency">
+          {% if trip.currency != 'EUR' %}<option>{{ trip.currency }}</option>{% endif %}
+          <option>EUR</option>
+        </select></div>
       <div><label>Kind</label>
         <select name="kind"><option>estimated</option><option>booked</option><option>actual</option></select></div>
     </div>
@@ -78,12 +85,14 @@
   </form>
 </div>
 
+{% if trip.currency != 'EUR' %}
 <div class="card">
   <h2 style="margin-top:0">Exchange rate</h2>
   <form method="post" action="{{ url_for('set_fx') }}" class="row">
-    <div><label>EUR per NZD</label>
-      <input type="number" step="0.0001" name="fx" value="{{ '%.4f'|format(trip.fx_nzd_eur) }}"></div>
+    <div><label>EUR per {{ trip.currency }}</label>
+      <input type="number" step="0.0001" name="fx" value="{{ '%.4f'|format(trip.fx_to_eur) }}"></div>
     <div style="align-self:end"><button type="submit">Update rate</button></div>
   </form>
 </div>
+{% endif %}
 {% endblock %}

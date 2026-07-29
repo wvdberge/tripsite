@@ -16,7 +16,7 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="{{ url_for('home') }}">🇳🇿 {{ trip.name if trip else 'Tripsite' }}</a>
+  <a class="brand" href="{{ url_for('home') }}">{{ trip.name if trip else 'Tripsite' }}</a>
   <nav>
     <a href="{{ url_for('days') }}">Days</a>
     <a href="{{ url_for('legs') }}">Route</a>
@@ -24,6 +24,7 @@
     <a href="{{ url_for('costs') }}">Costs</a>
     <a href="{{ url_for('tasks') }}">Tasks{% if open_task_count %} <span class="badge">{{ open_task_count }}</span>{% endif %}</a>
     <a href="{{ url_for('trip_map') }}">Map</a>
+    <a href="{{ url_for('trips') }}">Trips</a>
   </nav>
   <span class="who">
     {% if me %}<a href="{{ url_for('whoami') }}" title="Switch user">{{ me.name }}</a>{% endif %}

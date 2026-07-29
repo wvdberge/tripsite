@@ -4,7 +4,13 @@
 <h1>{{ trip.name }}</h1>
 
 <div class="stats">
+  {% if trip_status == 'upcoming' %}
   <div class="stat"><div class="n">{{ countdown }}</div><div class="l">days to departure</div></div>
+  {% elif trip_status == 'underway' %}
+  <div class="stat"><div class="n">now</div><div class="l">trip underway</div></div>
+  {% else %}
+  <div class="stat"><div class="n">✓</div><div class="l">trip done</div></div>
+  {% endif %}
   <div class="stat"><div class="n">{{ booked_nights }}/{{ total_nights }}</div><div class="l">nights booked</div></div>
   <div class="stat"><div class="n">{{ booked_eur|eur }}</div><div class="l">booked of {{ est_eur|eur }} est.</div></div>
   <div class="stat"><div class="n">{{ open_tasks }}</div><div class="l">open tasks</div></div>
