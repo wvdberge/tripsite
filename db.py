@@ -34,14 +34,6 @@ def init_schema(conn):
     conn.commit()
 
 
-def wipe(conn):
-    """Drop every table so a re-import starts clean."""
-    tables = ["event", "task", "cost", "idea", "day", "leg", "person", "trip"]
-    for t in tables:
-        conn.execute(f"DROP TABLE IF EXISTS {t}")
-    conn.commit()
-
-
 def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
@@ -52,9 +44,3 @@ def log_event(conn, trip_id, person_id, summary):
         "INSERT INTO event (trip_id, ts, person_id, summary) VALUES (?, ?, ?, ?)",
         (trip_id, now_iso(), person_id, summary),
     )
-
-
-def trip_id(conn):
-    """The single trip's id (the app is single-trip by design)."""
-    row = conn.execute("SELECT id FROM trip ORDER BY id LIMIT 1").fetchone()
-    return row["id"] if row else None

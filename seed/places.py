@@ -1,6 +1,6 @@
 """Static place-name -> (lat, lon) lookup. Approximate coordinates, hand-set.
-No geocoding API (the box is LAN-only). Used by import_data.py to place legs
-and ideas on the map. Keys are the canonical names the importer passes in.
+No geocoding API (the box is LAN-only). Used by seed_trip.py to place legs and
+ideas on the map. Keys are the canonical place_key values the seed modules pass in.
 """
 
 PLACES = {
@@ -40,6 +40,15 @@ PLACES = {
     "Pancake Rocks": (-42.1147, 171.3260),
     "Te Papa": (-41.2905, 174.7820),
     "Huka Falls": (-38.6489, 176.0900),
+
+    # --- UK Cycling 2026 (Hadrian's Cycleway) leg bases ---
+    "Newcastle": (54.9738, -1.6132),
+    "Carlisle": (54.8925, -2.9329),
+    "Brampton": (54.9440, -2.7340),
+    "Haltwhistle": (54.9700, -2.4570),
+    "Hexham": (54.9710, -2.1010),
+    "North Shields": (55.0080, -1.4400),   # DFDS ferry terminal (both ferry legs)
+    "IJmuiden": (52.4600, 4.6100),         # NL ferry port (route bookend)
 }
 
 
