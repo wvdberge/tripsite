@@ -1,5 +1,11 @@
 # Tripsite — implementation plan
 
+> **Historical.** This is the original single-trip (NZ 2027) design. The app is
+> now multi-trip (see `PLAN_MULTITRIP.md` for that build and `CLAUDE.md` for the
+> current architecture). Decisions #2 (single-trip) and #9 (NZD-only money) below
+> are superseded; the code lives at `personal/vakantie/tripsite/`, seeding is via
+> `seed_trip.py` (no `import_data.py`, no `--wipe`).
+
 Private, self-hosted trip-planning site for the NZ 2027 trip. Two users (Wiljan + partner), planning phase only. This plan is self-contained: execute it top to bottom without needing the design conversation that produced it.
 
 ## Why this exists
@@ -9,21 +15,21 @@ The trip currently lives in markdown files in this repo. That is single-player: 
 ## Locked decisions (do not relitigate)
 
 1. **Source of truth:** the site's SQLite DB. The markdown files in `new_zealand_2027/` get a one-time import, after which they stop being the plan.
-2. **Scope:** NZ 2027 only. A `trip` table exists as a hedge (one row), but no trip-management UI, no trip switcher.
+2. ~~**Scope:** NZ 2027 only. A `trip` table exists as a hedge (one row), but no trip-management UI, no trip switcher.~~ **Superseded:** the app is multi-trip; active trip is a `trip_id` cookie, `/trips` switches and creates trips.
 3. **Stack:** Flask + SQLite + Jinja2 templates + htmx. Leaflet + OpenStreetMap tiles for the map (no API keys). No JS build step, no node_modules. Mobile-responsive (couch phone is a primary device).
 4. **Hosting:** one Docker container on the Synology NAS, LAN-only. No internet exposure. Tailscale is the known future upgrade path; do not build for it now.
 5. **Auth:** none. A name picker ("Who are you?") sets a cookie; that identity stamps authorship and feed events. No passwords.
 6. **Days:** auto-generated for the trip date range. A day = its leg (derived from leg date ranges, not a FK) + pinned ideas + free-text note + energy marker (`rest`/`light`/`full`/unset). No time slots, no intra-day ordering.
 7. **Tasks:** attached to a leg or an idea, plus one "general" list for orphans (e.g. packing). Strictly trip-scoped.
 8. **Collaboration:** a "what's new" feed on the home page, driven by an `event` row appended on every write. No comments, no votes, no notifications.
-9. **Money:** each cost line stores its native currency (`NZD` or `EUR`). Roll-ups display in EUR using a single editable trip-level rate (start at 0.56 EUR per NZD). No live FX.
+9. **Money:** each cost line stores its native currency. Roll-ups display in EUR using a single editable trip-level rate. No live FX. *(Now per-trip: `trip.currency` + `trip.fx_to_eur`, e.g. NZD/0.56, GBP/1.1711 — was NZD-only.)*
 10. **Language:** English UI. Data (place names, notes) is whatever users type.
 11. **Backups:** nightly `sqlite3 .backup` on the NAS + an occasional copy committed into this repo (see Deployment).
 12. **Process:** build the full MVP, then Wiljan shows his partner. No intermediate demo step.
 
 ## Repo layout
 
-All code in `personal/vakantie/new_zealand_2027/tripsite/`:
+All code in `personal/vakantie/tripsite/`:
 
 ```
 tripsite/
