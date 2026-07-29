@@ -1,12 +1,14 @@
 -- Tripsite schema. SQLite. ISO date strings (YYYY-MM-DD) throughout.
--- Single trip (NZ 2027); the trip table is a one-row hedge, no trip-management UI.
+-- Multi-trip: many trip rows, everything scoped by trip_id. The active trip is
+-- a cookie (app.py load_person). People are global (shared across all trips).
 
 CREATE TABLE trip (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   start_date TEXT NOT NULL,
   end_date TEXT NOT NULL,
-  fx_nzd_eur REAL NOT NULL DEFAULT 0.56,
+  currency TEXT NOT NULL DEFAULT 'EUR',   -- the trip's local currency code
+  fx_to_eur REAL NOT NULL DEFAULT 1.0,    -- EUR per 1 unit of that currency
   budget_eur REAL
 );
 
@@ -34,9 +36,10 @@ CREATE TABLE leg (
 CREATE TABLE day (
   id INTEGER PRIMARY KEY,
   trip_id INTEGER NOT NULL REFERENCES trip(id),
-  date TEXT NOT NULL UNIQUE,
+  date TEXT NOT NULL,
   energy TEXT CHECK (energy IN ('rest','light','full')),
-  note TEXT
+  note TEXT,
+  UNIQUE(trip_id, date)
 );
 
 CREATE TABLE idea (
@@ -60,7 +63,7 @@ CREATE TABLE cost (
   trip_id INTEGER NOT NULL REFERENCES trip(id),
   label TEXT NOT NULL,
   amount REAL NOT NULL,
-  currency TEXT NOT NULL CHECK (currency IN ('NZD','EUR')),
+  currency TEXT NOT NULL,   -- 'EUR' or the trip's local currency; validated in the app
   kind TEXT NOT NULL CHECK (kind IN ('estimated','booked','actual')),
   category TEXT NOT NULL,
   leg_id INTEGER REFERENCES leg(id),
@@ -83,3 +86,5 @@ CREATE TABLE event (
   person_id INTEGER REFERENCES person(id),
   summary TEXT NOT NULL
 );
+
+PRAGMA user_version = 2;
