@@ -578,13 +578,10 @@ def trips():
 @app.route("/trips/<int:trip_id>/switch", methods=["POST"])
 def switch_trip(trip_id):
     conn = g.conn
-    row = conn.execute("SELECT * FROM trip WHERE id = ?", (trip_id,)).fetchone()
+    row = conn.execute("SELECT id FROM trip WHERE id = ?", (trip_id,)).fetchone()
     if row is None:
         abort(404)
-    # Log the switch against the target trip's feed.
-    db.log_event(conn, trip_id, g.person["id"] if g.person else None,
-                 f"{person_name()} switched to {row['name']}")
-    conn.commit()
+    # Switching is navigation, not an edit, so it isn't logged to the feed.
     resp = redirect(url_for("home"))
     resp.set_cookie("trip_id", str(trip_id), max_age=60 * 60 * 24 * 365)
     return resp

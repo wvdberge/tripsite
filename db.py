@@ -6,7 +6,10 @@ The DB path comes from the TRIPSITE_DB env var (set in the container to
 
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+AMS = ZoneInfo("Europe/Amsterdam")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DB = os.path.join(HERE, "data", "trip.db")
@@ -35,7 +38,10 @@ def init_schema(conn):
 
 
 def now_iso():
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    # Store local wall-clock time. The container runs in UTC, so relying on
+    # astimezone() gave timestamps 2h behind Amsterdam (the feed truncates the
+    # offset). Pin the zone explicitly; DST is handled by ZoneInfo.
+    return datetime.now(AMS).isoformat(timespec="seconds")
 
 
 def log_event(conn, trip_id, person_id, summary):
