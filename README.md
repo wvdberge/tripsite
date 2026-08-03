@@ -17,8 +17,9 @@ python3 -m venv .venv
 
 The DB path defaults to `./data/trip.db`; override with `TRIPSITE_DB`. Seeding is
 additive and refuses to duplicate a trip; there is no wipe. To upgrade an
-existing v1 DB to the multi-trip schema, run `./.venv/bin/python migrate_v2.py`
-(idempotent).
+existing DB, run the migrations in order: `migrate_v2.py` (v1→v2, single→multi
+trip) then `migrate_v3.py` (v2→v3, adds the transport table + `cost.transport_id`).
+Both are idempotent.
 
 ## Files
 
@@ -26,8 +27,9 @@ existing v1 DB to the multi-trip schema, run `./.venv/bin/python migrate_v2.py`
 |---|---|
 | `app.py` | Flask routes + helpers |
 | `db.py` | connection, schema init, event logging |
-| `schema.sql` | table definitions (`PRAGMA user_version = 2`) |
+| `schema.sql` | table definitions (`PRAGMA user_version = 3`) |
 | `migrate_v2.py` | one-time v1→v2 (single-trip → multi-trip) migration |
+| `migrate_v3.py` | one-time v2→v3 (adds transport table + `cost.transport_id`) |
 | `seed_trip.py` | seed one trip additively from a `seed/trips/<name>.py` module |
 | `seed/trips/*.py` | per-trip seed data (`nz2027`, `uk2026`, …) |
 | `seed/places.py` | place-name → lat/lon lookup (no geocoding API) |
