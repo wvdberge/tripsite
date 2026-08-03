@@ -58,6 +58,32 @@ CREATE TABLE idea (
   created_at TEXT NOT NULL
 );
 
+-- Transport segments: flights, ferries, trains, car rental, buses. Trip-scoped;
+-- leg_id is usually NULL and set only when a segment clearly belongs to one stay
+-- (e.g. a water taxi across the Tasman). Times are optional 'HH:MM' text; the
+-- zone is a short label shown verbatim ('CET', 'NZDT') -- the app derives nothing
+-- from it (no DST maths, no elapsed time). Ordered by depart_date, depart_time.
+CREATE TABLE transport (
+  id INTEGER PRIMARY KEY,
+  trip_id INTEGER NOT NULL REFERENCES trip(id),
+  leg_id INTEGER REFERENCES leg(id),
+  kind TEXT NOT NULL DEFAULT 'flight'
+    CHECK (kind IN ('flight','ferry','train','car','bus','other')),
+  from_place TEXT,
+  to_place TEXT,
+  depart_date TEXT,          -- YYYY-MM-DD
+  depart_time TEXT,          -- 'HH:MM', nullable
+  depart_tz TEXT,            -- short zone label shown verbatim, nullable
+  arrive_date TEXT,          -- nullable
+  arrive_time TEXT,
+  arrive_tz TEXT,
+  provider TEXT,
+  confirmation_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'booked'
+    CHECK (status IN ('tbd','booked')),
+  notes TEXT
+);
+
 CREATE TABLE cost (
   id INTEGER PRIMARY KEY,
   trip_id INTEGER NOT NULL REFERENCES trip(id),
@@ -67,7 +93,8 @@ CREATE TABLE cost (
   kind TEXT NOT NULL CHECK (kind IN ('estimated','booked','actual')),
   category TEXT NOT NULL,
   leg_id INTEGER REFERENCES leg(id),
-  idea_id INTEGER REFERENCES idea(id)
+  idea_id INTEGER REFERENCES idea(id),
+  transport_id INTEGER REFERENCES transport(id)  -- a cost hangs off a leg, idea, OR transport
 );
 
 CREATE TABLE task (
@@ -87,4 +114,4 @@ CREATE TABLE event (
   summary TEXT NOT NULL
 );
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;

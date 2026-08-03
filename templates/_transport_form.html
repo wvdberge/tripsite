@@ -1,0 +1,52 @@
+{% macro transport_form(action, kinds, statuses, tz_suggestions, legs, tr=None, submit_label='Add transport') %}
+<form method="post" action="{{ action }}">
+  <div class="row">
+    <div><label>Type</label>
+      <select name="kind">
+        {% for k in kinds %}<option {{ 'selected' if tr and tr.kind == k }}>{{ k }}</option>{% endfor %}
+      </select></div>
+    <div><label>Status</label>
+      <select name="status">
+        {% for s in statuses %}<option {{ 'selected' if tr and tr.status == s }}>{{ s }}</option>{% endfor %}
+      </select></div>
+    <div><label>Provider</label>
+      <input type="text" name="provider" value="{{ (tr.provider or '') if tr else '' }}" placeholder="Cathay Pacific"></div>
+  </div>
+  <div class="row">
+    <div><label>From</label>
+      <input type="text" name="from_place" value="{{ (tr.from_place or '') if tr else '' }}" placeholder="Amsterdam (AMS)"></div>
+    <div><label>To</label>
+      <input type="text" name="to_place" value="{{ (tr.to_place or '') if tr else '' }}" placeholder="Christchurch (CHC)"></div>
+  </div>
+  <datalist id="tzlist">{% for z in tz_suggestions %}<option value="{{ z }}">{% endfor %}</datalist>
+  <div class="row">
+    <div><label>Depart date</label>
+      <input type="date" name="depart_date" value="{{ (tr.depart_date or '') if tr else '' }}"></div>
+    <div><label>Depart time</label>
+      <input type="text" name="depart_time" value="{{ (tr.depart_time or '') if tr else '' }}" placeholder="21:55"></div>
+    <div><label>Zone</label>
+      <input type="text" name="depart_tz" value="{{ (tr.depart_tz or '') if tr else '' }}" placeholder="CET" list="tzlist"></div>
+  </div>
+  <div class="row">
+    <div><label>Arrive date</label>
+      <input type="date" name="arrive_date" value="{{ (tr.arrive_date or '') if tr else '' }}"></div>
+    <div><label>Arrive time</label>
+      <input type="text" name="arrive_time" value="{{ (tr.arrive_time or '') if tr else '' }}" placeholder="12:50"></div>
+    <div><label>Zone</label>
+      <input type="text" name="arrive_tz" value="{{ (tr.arrive_tz or '') if tr else '' }}" placeholder="NZDT" list="tzlist"></div>
+  </div>
+  <div class="row">
+    <div><label>Confirmation ref</label>
+      <input type="text" name="confirmation_ref" value="{{ (tr.confirmation_ref or '') if tr else '' }}"></div>
+    <div><label>Tie to a stay (optional)</label>
+      <select name="leg_id">
+        <option value="">— none —</option>
+        {% for l in legs %}<option value="{{ l.id }}" {{ 'selected' if tr and tr.leg_id == l.id }}>{{ l.name }}</option>{% endfor %}
+      </select></div>
+  </div>
+  <label>Notes</label>
+  <textarea name="notes">{{ (tr.notes or '') if tr else '' }}</textarea>
+  <div style="margin-top:.5rem"><button type="submit">{{ submit_label }}</button>
+    {% if tr %} <a class="btn ghost" href="{{ url_for('transport') }}">Cancel</a>{% endif %}</div>
+</form>
+{% endmacro %}

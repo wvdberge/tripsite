@@ -19,17 +19,45 @@
       <td class="small">{{ fmt_date(t.start_date) }} – {{ fmt_date(t.end_date) }}</td>
       <td class="small">{{ t.currency }}{% if t.currency != 'EUR' %} @ {{ '%.4f'|format(t.fx_to_eur) }}{% endif %}</td>
       <td class="num">{{ t.booked_nights }}/{{ t.total_nights }}</td>
-      <td>
+      <td style="white-space:nowrap">
         {% if t.id != active_id %}
         <form method="post" action="{{ url_for('switch_trip', trip_id=t.id) }}" class="inline">
           <button type="submit">Switch</button>
         </form>
         {% endif %}
+        <a class="btn ghost small" href="{{ url_for('trips', edit=t.id) }}#edit">✎ Edit</a>
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+
+{% set editing = trips|selectattr('id', 'equalto', edit_id)|first %}
+{% if editing %}
+<div class="card" id="edit">
+  <h2 style="margin-top:0">Edit trip: {{ editing.name }}</h2>
+  <form method="post" action="{{ url_for('edit_trip', trip_id=editing.id) }}">
+    <input type="text" name="name" value="{{ editing.name }}" required>
+    <div class="row">
+      <div><label>Start date</label><input type="date" name="start_date" value="{{ editing.start_date }}" required></div>
+      <div><label>End date</label><input type="date" name="end_date" value="{{ editing.end_date }}" required></div>
+    </div>
+    <div class="row">
+      <div><label>Currency</label><input type="text" name="currency" value="{{ editing.currency }}" maxlength="3" style="text-transform:uppercase"></div>
+      <div><label>EUR per unit</label><input type="number" step="0.0001" name="fx_to_eur" value="{{ '%.4f'|format(editing.fx_to_eur) }}"></div>
+      <div><label>Budget (EUR, optional)</label><input type="number" step="1" name="budget_eur" value="{{ editing.budget_eur|int if editing.budget_eur else '' }}"></div>
+    </div>
+    <p class="muted small" style="margin:.5rem 0">Changing the dates adds or removes
+      day entries to match. Shrinking the range deletes those days' notes and energy
+      marks and unpins any idea pinned to a removed day. Stays outside the new range
+      survive but lose their day pages. Changing the currency does not re-price
+      existing costs already entered in the old currency — fix those cost lines by
+      hand.</p>
+    <div style="margin-top:.5rem"><button type="submit">Save changes</button>
+      <a class="btn ghost" href="{{ url_for('trips') }}">Cancel</a></div>
+  </form>
+</div>
+{% endif %}
 
 <div class="card">
   <h2 style="margin-top:0">Create a trip</h2>

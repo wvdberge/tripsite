@@ -1,0 +1,53 @@
+{% macro cost_form(action, legs, ideas, transports, categories, trip, cost=None, submit_label='Add cost') %}
+<form method="post" action="{{ action }}">
+  <input type="text" name="label" placeholder="Label (required)"
+         value="{{ cost.label if cost else '' }}" required>
+  <div class="row">
+    <div><label>Amount</label>
+      <input type="number" step="0.01" name="amount"
+             value="{{ '%.2f'|format(cost.amount) if cost else '' }}" required></div>
+    <div><label>Currency</label>
+      <select name="currency">
+        {% if trip.currency != 'EUR' %}
+        <option {{ 'selected' if cost and cost.currency == trip.currency }}>{{ trip.currency }}</option>
+        {% endif %}
+        <option {{ 'selected' if cost and cost.currency == 'EUR' }}>EUR</option>
+      </select></div>
+    <div><label>Kind</label>
+      <select name="kind">
+        {% for k in ['estimated','booked','actual'] %}
+        <option {{ 'selected' if cost and cost.kind == k }}>{{ k }}</option>
+        {% endfor %}
+      </select></div>
+  </div>
+  <div class="row">
+    <div><label>Category</label>
+      <select name="category">
+        {% for c in categories %}
+        <option {{ 'selected' if cost and cost.category == c }}>{{ c }}</option>
+        {% endfor %}
+      </select></div>
+    <div><label>Attached to (optional)</label>
+      <select name="attach">
+        <option value="">— none —</option>
+        <optgroup label="Stay">
+          {% for l in legs %}
+          <option value="leg:{{ l.id }}" {{ 'selected' if cost and cost.leg_id == l.id }}>{{ l.name }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Idea">
+          {% for i in ideas %}
+          <option value="idea:{{ i.id }}" {{ 'selected' if cost and cost.idea_id == i.id }}>{{ i.title }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="Transport">
+          {% for t in transports %}
+          <option value="transport:{{ t.id }}" {{ 'selected' if cost and cost.transport_id == t.id }}>{{ t.label }}</option>
+          {% endfor %}
+        </optgroup>
+      </select></div>
+  </div>
+  <div style="margin-top:.5rem"><button type="submit">{{ submit_label }}</button>
+    {% if cost %} <a class="btn ghost" href="{{ url_for('costs') }}">Cancel</a>{% endif %}</div>
+</form>
+{% endmacro %}

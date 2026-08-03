@@ -18,10 +18,11 @@ once). The repo lives at `~/personal/vakantie/tripsite/` (its own git remote,
 ## Architecture in one screen
 
 - `app.py` — all routes + helpers. `db.py` — connection, schema init, event log.
-  `schema.sql` — tables (`PRAGMA user_version = 2`). `migrate_v2.py` — one-time
-  v1→v2 migration for an existing DB. `seed_trip.py` + `seed/trips/<name>.py` —
-  per-trip seed data. `seed/places.py` — name→lat/lon. `templates/` (Jinja +
-  htmx), `static/` (vendored htmx + Leaflet).
+  `schema.sql` — tables (`PRAGMA user_version = 3`). `migrate_v2.py` /
+  `migrate_v3.py` — one-time migrations for an existing DB (v3 adds the
+  `transport` table + `cost.transport_id`, purely additive; idempotent).
+  `seed_trip.py` + `seed/trips/<name>.py` — per-trip seed data. `seed/places.py`
+  — name→lat/lon. `templates/` (Jinja + htmx), `static/` (vendored htmx + Leaflet).
 - **The active trip is a cookie** (`trip_id`), resolved in `app.py resolve_trip`:
   the cookie if valid, else the next upcoming trip (end_date >= today, earliest
   start), else the most recent one. People are **global** (shared across trips).
@@ -37,6 +38,25 @@ once). The repo lives at `~/personal/vakantie/tripsite/` (its own git remote,
   EUR via `to_eur`. NZ = NZD/0.56, UK = GBP/1.1711. No live FX.
 - **htmx** returns small partials (`_idea_status.html`, `_task_item.html`) for
   inline swaps; everything else is plain forms + redirects.
+- **Transport** (`transport` table) is a first-class entity: flights, ferries,
+  trains, car rental, buses. Trip-scoped, ordered by `depart_date`/`depart_time`,
+  with an optional `leg_id` (usually NULL; set only when a segment clearly belongs
+  to one stay). Times are optional `HH:MM` text; the zone is a **short label shown
+  verbatim** ("CET", "NZDT") — the app derives nothing from it (no DST maths, no
+  elapsed time). Surfaced on `/transport` and on the day it departs/arrives.
+- **A cost hangs off at most one of leg / idea / transport** (`cost.leg_id`,
+  `idea_id`, `transport_id`). The "attach to" picker posts a single `attach`
+  field ("leg:5" / "idea:12" / "transport:3"); `parse_attach` sets exactly one
+  column server-side. A pinned idea with a cost is a "day trip" — no separate
+  entity. Cost roll-ups already sum by trip, so a transport/idea cost lands in
+  totals automatically.
+- **Edit surface (what the UI can change).** Tasks: add, toggle, edit text,
+  delete. Costs: add, edit, delete, re-attach. Stays (legs): add (auto-`seq` by
+  date), edit all fields incl. dates + pasted lat/lon, delete (manual ordered
+  cascade — FKs are ON with no `ON DELETE CASCADE`, so `delete_leg`/
+  `delete_transport` remove children by hand). Trip: edit name/dates/budget/
+  currency/fx (date change resyncs day rows and unpins ideas on removed days).
+  Transport: full CRUD. Ideas: add, edit, status, pin, costs.
 
 ## Adding a trip = write a seed module, never wipe
 
@@ -63,10 +83,14 @@ through the UI. There is no wipe tool; a from-scratch rebuild is just
   seed (above), then `./.venv/bin/python app.py` (http://127.0.0.1:5000, or a free
   port — macOS AirPlay often holds 5000). DB path is `TRIPSITE_DB` (defaults to
   `./data/trip.db`).
-- **Migrating an existing (v1) DB:** back it up, then `./.venv/bin/python
-  migrate_v2.py`. It is idempotent (a second run no-ops) and reports row counts +
-  a foreign-key check. New code against an unmigrated DB will 500 (it reads
-  `trip.currency` and `UNIQUE(trip_id,date)`), so migrate before trusting the app.
+- **Migrating an existing DB:** back it up, then run the migrations in order:
+  `./.venv/bin/python migrate_v2.py` (v1→v2), then `migrate_v3.py` (v2→v3, adds
+  transport). Each is idempotent (a second run no-ops) and reports row counts + a
+  foreign-key check. New code against an unmigrated DB will error (it reads
+  `trip.currency`, `UNIQUE(trip_id,date)`, the `transport` table, and
+  `cost.transport_id`), so migrate before trusting the app. On the live NAS DB,
+  run the migration **inside the container** against `/data/trip.db` after a
+  backup — do not push a code file over the DB.
 - Deploy is git-clone-on-NAS + `sudo docker compose up -d --build` (see
   `tech_setup/Tripsite-Setup.md`). NAS gotchas: Docker needs sudo; scp/SFTP is
   disabled (write files with `ssh 'cat > file'`); the compose build uses

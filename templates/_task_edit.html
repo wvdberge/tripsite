@@ -1,0 +1,11 @@
+<li class="task-item" style="display:flex;gap:.5rem;align-items:center">
+  <form class="inline" style="flex:1;display:flex;gap:.5rem;align-items:center"
+        hx-post="{{ url_for('edit_task', task_id=t.id) }}"
+        hx-target="closest .task-item" hx-swap="outerHTML">
+    <input type="text" name="title" value="{{ t.title }}" style="flex:1" required autofocus>
+    <button class="small" type="submit">Save</button>
+    <button class="ghost small" type="button" title="Cancel"
+            hx-get="{{ url_for('view_task', task_id=t.id) }}"
+            hx-target="closest .task-item" hx-swap="outerHTML">Cancel</button>
+  </form>
+</li>

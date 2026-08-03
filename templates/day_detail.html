@@ -29,6 +29,25 @@
   </form>
 </div>
 
+{% if transport %}
+<div class="card">
+  <h2 style="margin-top:0">Transport today</h2>
+  <ul class="clean">
+    {% for t in transport %}
+    <li>
+      <a href="{{ url_for('transport_detail', tr_id=t.id) }}">{{ t.kind }}</a>:
+      {{ t.from_place or '?' }} → {{ t.to_place or '?' }}
+      {% if t.depart_date == day.date and t.depart_time %}
+        <span class="muted small">departs {{ t.depart_time }}{% if t.depart_tz %} {{ t.depart_tz }}{% endif %}</span>
+      {% elif t.arrive_date == day.date and t.arrive_time %}
+        <span class="muted small">arrives {{ t.arrive_time }}{% if t.arrive_tz %} {{ t.arrive_tz }}{% endif %}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <div class="card">
   <h2 style="margin-top:0">Pinned ideas</h2>
   {% if pinned %}

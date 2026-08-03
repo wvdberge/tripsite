@@ -7,8 +7,26 @@
   {% if leg.location %}· {{ leg.location }}{% endif %}</p>
 
 <div class="card">
-  <h2 style="margin-top:0">Accommodation</h2>
+  <h2 style="margin-top:0">Edit stay</h2>
   <form method="post">
+    <div class="row">
+      <div><label>Place</label>
+        <input type="text" name="name" value="{{ leg.name }}" required></div>
+      <div><label>Area</label>
+        <input type="text" name="location" value="{{ leg.location or '' }}" placeholder="Region"></div>
+    </div>
+    <div class="row">
+      <div><label>Arrive</label>
+        <input type="date" name="start_date" value="{{ leg.start_date }}" required></div>
+      <div><label>Leave</label>
+        <input type="date" name="end_date" value="{{ leg.end_date }}" required></div>
+    </div>
+    <div class="row">
+      <div><label>Latitude (map pin)</label>
+        <input type="text" name="lat" value="{{ leg.lat if leg.lat is not none else '' }}" placeholder="-44.700"></div>
+      <div><label>Longitude</label>
+        <input type="text" name="lon" value="{{ leg.lon if leg.lon is not none else '' }}" placeholder="169.144"></div>
+    </div>
     <label>Accommodation</label>
     <input type="text" name="accommodation" value="{{ leg.accommodation or '' }}" placeholder="Where you're staying">
     <div class="row">
@@ -28,6 +46,16 @@
     <label>Notes</label>
     <textarea name="notes">{{ leg.notes or '' }}</textarea>
     <div style="margin-top:.5rem"><button type="submit">Save</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Delete this stay</h2>
+  <p class="muted small">Removes the stay and everything tied to it: its costs, tasks,
+    ideas, and any transport attached to it. This can't be undone.</p>
+  <form method="post" action="{{ url_for('delete_leg', leg_id=leg.id) }}"
+        onsubmit="return confirm('Delete {{ leg.name }} and all its costs, tasks, ideas, and attached transport? This cannot be undone.')">
+    <button class="danger" type="submit">Delete stay</button>
   </form>
 </div>
 

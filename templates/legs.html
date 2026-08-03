@@ -22,4 +22,39 @@
     {% endfor %}
   </tbody>
 </table>
+
+<div class="card">
+  <h2 style="margin-top:0">Add a stay</h2>
+  <p class="muted small">Slots into the list by its dates. Trip runs
+    {{ fmt_date(trip.start_date) }} – {{ fmt_date(trip.end_date) }}.</p>
+  <form method="post" action="{{ url_for('add_leg') }}">
+    <input type="text" name="name" placeholder="Place (e.g. Wanaka)" required>
+    <div class="row">
+      <div><label>Arrive</label>
+        <input type="date" name="start_date" min="{{ trip.start_date }}" max="{{ trip.end_date }}" required></div>
+      <div><label>Leave</label>
+        <input type="date" name="end_date" min="{{ trip.start_date }}" max="{{ trip.end_date }}" required></div>
+      <div><label>Area (optional)</label>
+        <input type="text" name="location" placeholder="Region"></div>
+    </div>
+    <div class="row">
+      <div><label>Accommodation (optional)</label>
+        <input type="text" name="accommodation" placeholder="Where you're staying"></div>
+      <div><label>Status</label>
+        <select name="accommodation_status">
+          {% for s in accom_statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select></div>
+      <div><label>Confirmation ref</label>
+        <input type="text" name="confirmation_ref" placeholder="#180797"></div>
+    </div>
+    <div class="row">
+      <div><label>Latitude (optional, for map pin)</label>
+        <input type="text" name="lat" placeholder="-44.700"></div>
+      <div><label>Longitude (optional)</label>
+        <input type="text" name="lon" placeholder="169.144"></div>
+    </div>
+    <p class="muted small">Paste both from Google Maps for a map dot; leave blank and the stay still works, just no pin.</p>
+    <div style="margin-top:.5rem"><button type="submit">Add stay</button></div>
+  </form>
+</div>
 {% endblock %}

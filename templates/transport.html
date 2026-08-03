@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_transport_form.html" import transport_form %}
+{% block title %}Transport{% endblock %}
+{% block content %}
+<h1>Transport</h1>
+
+{% if items %}
+<table>
+  <thead><tr><th>Type</th><th>Route</th><th>Depart</th><th>Arrive</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for t in items %}
+  <tr>
+    <td><a href="{{ url_for('transport_detail', tr_id=t.id) }}">{{ t.kind }}</a>
+      {% if t.provider %}<div class="muted small">{{ t.provider }}</div>{% endif %}</td>
+    <td class="small">{{ t.from_place or '?' }} → {{ t.to_place or '?' }}
+      {% if t.leg_name %}<div class="muted">📍 {{ t.leg_name }}</div>{% endif %}</td>
+    <td class="small">{% if t.depart_date %}{{ fmt_date(t.depart_date) }}{% endif %}
+      {%- if t.depart_time %} {{ t.depart_time }}{% endif %}{% if t.depart_tz %} {{ t.depart_tz }}{% endif %}</td>
+    <td class="small">{% if t.arrive_date %}{{ fmt_date(t.arrive_date) }}{% endif %}
+      {%- if t.arrive_time %} {{ t.arrive_time }}{% endif %}{% if t.arrive_tz %} {{ t.arrive_tz }}{% endif %}</td>
+    <td><span class="pill {{ t.status }}">{{ t.status }}</span></td>
+    <td><a class="btn ghost small" href="{{ url_for('transport_detail', tr_id=t.id) }}">✎</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted small">No transport yet. Add a flight, ferry, train, or the car rental below.</p>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Add transport</h2>
+  {{ transport_form(url_for('add_transport'), kinds, statuses, tz_suggestions, legs) }}
+</div>
+{% endblock %}

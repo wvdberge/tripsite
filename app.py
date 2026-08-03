@@ -18,6 +18,9 @@ ENERGY_LABELS = {"rest": "Rest", "light": "Light", "full": "Full"}
 COST_CATEGORIES = ["transport", "accommodation", "food", "activities", "other"]
 IDEA_STATUSES = ["idea", "agreed", "booked", "rejected"]
 ACCOM_STATUSES = ["tbd", "shortlisted", "booked"]
+TRANSPORT_KINDS = ["flight", "ferry", "train", "car", "bus", "other"]
+TRANSPORT_STATUSES = ["tbd", "booked"]
+TZ_SUGGESTIONS = ["CET", "CEST", "GMT", "BST", "HKT", "SGT", "NZDT", "NZST", "AEDT"]
 
 
 # --- request lifecycle ----------------------------------------------------
@@ -230,6 +233,9 @@ def day_detail(d):
         return redirect(url_for("day_detail", d=d))
 
     leg = leg_for_date(d)
+    transport_here = conn.execute(
+        "SELECT * FROM transport WHERE trip_id = ? AND (depart_date = ? OR arrive_date = ?) "
+        "ORDER BY depart_time", (tid, d, d)).fetchall()
     pinned = conn.execute(
         "SELECT * FROM idea WHERE trip_id = ? AND pinned_date = ? ORDER BY title",
         (tid, d)).fetchall()
@@ -241,8 +247,8 @@ def day_detail(d):
         "CASE WHEN leg_id = ? THEN 0 ELSE 1 END, title",
         (tid, d, leg["id"] if leg else -1)).fetchall()
     return render_template("day_detail.html", day=day, leg=leg, pinned=pinned,
-                           candidates=candidates, fmt_date=fmt_date,
-                           weekday=weekday)
+                           candidates=candidates, transport=transport_here,
+                           fmt_date=fmt_date, weekday=weekday)
 
 
 @app.route("/days/<d>/pin", methods=["POST"])
@@ -273,13 +279,97 @@ def unpin_idea(d):
 
 # --- legs -----------------------------------------------------------------
 
+def renumber_legs(conn, tid):
+    """Resequence seq 1..n by start_date so stays always list in date order.
+    Ties break by existing seq then id, keeping a stable order."""
+    rows = conn.execute(
+        "SELECT id FROM leg WHERE trip_id = ? ORDER BY start_date, seq, id",
+        (tid,)).fetchall()
+    for i, r in enumerate(rows, start=1):
+        conn.execute("UPDATE leg SET seq = ? WHERE id = ?", (i, r["id"]))
+
+
+def parse_latlon(form):
+    """Optional pasted coordinates. Blank or unparseable -> None (no map pin)."""
+    def num(key):
+        v = (form.get(key) or "").strip()
+        try:
+            return float(v) if v else None
+        except ValueError:
+            return None
+    return num("lat"), num("lon")
+
+
 @app.route("/legs")
 def legs():
     conn = g.conn
     rows = conn.execute(
         "SELECT * FROM leg WHERE trip_id = ? ORDER BY seq", (g.trip["id"],)).fetchall()
     legs_out = [dict(l, nights=nights(l)) for l in rows]
-    return render_template("legs.html", legs=legs_out, fmt_date=fmt_date)
+    return render_template("legs.html", legs=legs_out, fmt_date=fmt_date,
+                           accom_statuses=ACCOM_STATUSES)
+
+
+@app.route("/legs/add", methods=["POST"])
+def add_leg():
+    conn = g.conn
+    tid = g.trip["id"]
+    name = request.form.get("name", "").strip()
+    start = request.form.get("start_date", "").strip()
+    end = request.form.get("end_date", "").strip()
+    try:
+        d0, d1 = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError:
+        return redirect(url_for("legs"))
+    if not name or d1 <= d0:            # a stay is at least one night
+        return redirect(url_for("legs"))
+    location = request.form.get("location", "").strip() or None
+    lat, lon = parse_latlon(request.form)
+    accom = request.form.get("accommodation", "").strip() or None
+    status = request.form.get("accommodation_status", "tbd")
+    if status not in ACCOM_STATUSES:
+        status = "tbd"
+    ref = request.form.get("confirmation_ref", "").strip() or None
+    notes = request.form.get("notes", "").strip() or None
+    conn.execute(
+        "INSERT INTO leg (trip_id, seq, name, location, lat, lon, start_date, "
+        "end_date, accommodation, accommodation_status, confirmation_ref, notes) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (tid, 9999, name, location, lat, lon, start, end, accom, status, ref, notes))
+    renumber_legs(conn, tid)           # slot into date order, drop the temp seq
+    event(f"{person_name()} added the stay {name}")
+    conn.commit()
+    return redirect(url_for("legs"))
+
+
+@app.route("/legs/<int:leg_id>/delete", methods=["POST"])
+def delete_leg(leg_id):
+    conn = g.conn
+    tid = g.trip["id"]
+    leg = conn.execute("SELECT * FROM leg WHERE id = ? AND trip_id = ?",
+                       (leg_id, tid)).fetchone()
+    if leg is None:
+        abort(404)
+    # Manual cascade in dependency order: FKs are ON with no ON DELETE CASCADE,
+    # so a parent with surviving children raises IntegrityError. Children first.
+    idea_ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM idea WHERE leg_id = ?", (leg_id,)).fetchall()]
+    for iid in idea_ids:               # costs/tasks owned by this leg's ideas
+        conn.execute("DELETE FROM cost WHERE idea_id = ?", (iid,))
+        conn.execute("DELETE FROM task WHERE idea_id = ?", (iid,))
+    conn.execute("DELETE FROM idea WHERE leg_id = ?", (leg_id,))
+    tr_ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM transport WHERE leg_id = ?", (leg_id,)).fetchall()]
+    for trid in tr_ids:                # costs on transport tied to this leg
+        conn.execute("DELETE FROM cost WHERE transport_id = ?", (trid,))
+    conn.execute("DELETE FROM transport WHERE leg_id = ?", (leg_id,))
+    conn.execute("DELETE FROM cost WHERE leg_id = ?", (leg_id,))
+    conn.execute("DELETE FROM task WHERE leg_id = ?", (leg_id,))
+    conn.execute("DELETE FROM leg WHERE id = ?", (leg_id,))
+    renumber_legs(conn, tid)
+    event(f"{person_name()} deleted the stay {leg['name']} and everything attached")
+    conn.commit()
+    return redirect(url_for("legs"))
 
 
 @app.route("/legs/<int:leg_id>", methods=["GET", "POST"])
@@ -290,18 +380,37 @@ def leg_detail(leg_id):
     if leg is None:
         abort(404)
     if request.method == "POST":
+        name = request.form.get("name", "").strip() or leg["name"]
+        location = request.form.get("location", "").strip() or None
+        lat, lon = parse_latlon(request.form)
         accom = request.form.get("accommodation", "").strip() or None
         status = request.form.get("accommodation_status", "tbd")
         ref = request.form.get("confirmation_ref", "").strip() or None
         notes = request.form.get("notes", "").strip() or None
         if status not in ACCOM_STATUSES:
             abort(400)
-        conn.execute(
-            "UPDATE leg SET accommodation = ?, accommodation_status = ?, "
-            "confirmation_ref = ?, notes = ? WHERE id = ?",
-            (accom, status, ref, notes, leg_id))
-        event(f"{person_name()} updated {leg['name']} "
-              f"(accommodation: {status})")
+        # Dates are optional to change; only apply them when both parse and span
+        # at least one night, otherwise leave the stored dates untouched.
+        start = request.form.get("start_date", "").strip()
+        end = request.form.get("end_date", "").strip()
+        try:
+            dates_ok = date.fromisoformat(end) > date.fromisoformat(start)
+        except ValueError:
+            dates_ok = False
+        if dates_ok:
+            conn.execute(
+                "UPDATE leg SET name=?, location=?, lat=?, lon=?, start_date=?, "
+                "end_date=?, accommodation=?, accommodation_status=?, "
+                "confirmation_ref=?, notes=? WHERE id=?",
+                (name, location, lat, lon, start, end, accom, status, ref, notes,
+                 leg_id))
+            renumber_legs(conn, g.trip["id"])
+        else:
+            conn.execute(
+                "UPDATE leg SET name=?, location=?, lat=?, lon=?, accommodation=?, "
+                "accommodation_status=?, confirmation_ref=?, notes=? WHERE id=?",
+                (name, location, lat, lon, accom, status, ref, notes, leg_id))
+        event(f"{person_name()} updated {name} (accommodation: {status})")
         conn.commit()
         return redirect(url_for("leg_detail", leg_id=leg_id))
 
@@ -405,56 +514,150 @@ def idea_detail(idea_id):
         "SELECT * FROM task WHERE idea_id = ? ORDER BY done, id", (idea_id,)).fetchall()
     days_all = conn.execute(
         "SELECT date FROM day WHERE trip_id = ? ORDER BY date", (g.trip["id"],)).fetchall()
+    cost_rows = conn.execute(
+        "SELECT * FROM cost WHERE idea_id = ? ORDER BY id", (idea_id,)).fetchall()
+    idea_costs = [dict(c, eur=to_eur(c["amount"], c["currency"])) for c in cost_rows]
     return render_template("idea_detail.html", i=idea, legs=legs_all, tasks=tasks,
                            days=days_all, statuses=IDEA_STATUSES,
+                           idea_costs=idea_costs, categories=COST_CATEGORIES,
                            fmt_date=fmt_date)
 
 
 # --- costs ----------------------------------------------------------------
 
+def transport_label(kind, from_place, to_place):
+    """One-line label for a transport segment, used in pickers and cost rows."""
+    return f"{kind}: {from_place or '?'} → {to_place or '?'}"
+
+
+def cost_attach_options(conn, tid):
+    """The three things a cost can hang off, for the 'attach to' picker and joins."""
+    legs = conn.execute(
+        "SELECT id, name FROM leg WHERE trip_id = ? ORDER BY seq", (tid,)).fetchall()
+    ideas = conn.execute(
+        "SELECT id, title FROM idea WHERE trip_id = ? AND status != 'rejected' "
+        "ORDER BY title", (tid,)).fetchall()
+    trs = conn.execute(
+        "SELECT id, kind, from_place, to_place FROM transport WHERE trip_id = ? "
+        "ORDER BY depart_date, depart_time", (tid,)).fetchall()
+    transports = [{"id": t["id"],
+                   "label": transport_label(t["kind"], t["from_place"], t["to_place"])}
+                  for t in trs]
+    return legs, ideas, transports
+
+
+def parse_attach(form):
+    """Read the single 'attach' picker ('leg:5' / 'idea:12' / 'transport:3') into
+    exactly one of (leg_id, idea_id, transport_id). Validates the row is in the
+    active trip; anything unrecognised attaches to nothing. Mutual exclusivity is
+    structural: only one column is ever set."""
+    kind, _, sid = (form.get("attach") or "").strip().partition(":")
+    if kind not in ("leg", "idea", "transport") or not sid.isdigit():
+        return None, None, None
+    sid = int(sid)
+    ok = g.conn.execute(f"SELECT 1 FROM {kind} WHERE id = ? AND trip_id = ?",
+                        (sid, g.trip["id"])).fetchone()
+    if not ok:
+        return None, None, None
+    return (sid if kind == "leg" else None,
+            sid if kind == "idea" else None,
+            sid if kind == "transport" else None)
+
+
+def _cost_attached_label(c):
+    if c["leg_name"]:
+        return f"📍 {c['leg_name']}"
+    if c["idea_title"]:
+        return f"💡 {c['idea_title']}"
+    if c["tr_kind"]:
+        return "🚌 " + transport_label(c["tr_kind"], c["tr_from"], c["tr_to"])
+    return None
+
+
 @app.route("/costs")
 def costs():
     conn = g.conn
+    tid = g.trip["id"]
     rows = conn.execute(
-        "SELECT c.*, l.name AS leg_name FROM cost c "
-        "LEFT JOIN leg l ON l.id = c.leg_id WHERE c.trip_id = ? "
-        "ORDER BY c.category, c.id", (g.trip["id"],)).fetchall()
-    lines = [dict(c, eur=to_eur(c["amount"], c["currency"])) for c in rows]
+        "SELECT c.*, l.name AS leg_name, i.title AS idea_title, "
+        "t.kind AS tr_kind, t.from_place AS tr_from, t.to_place AS tr_to "
+        "FROM cost c "
+        "LEFT JOIN leg l ON l.id = c.leg_id "
+        "LEFT JOIN idea i ON i.id = c.idea_id "
+        "LEFT JOIN transport t ON t.id = c.transport_id "
+        "WHERE c.trip_id = ? ORDER BY c.category, c.id", (tid,)).fetchall()
+    lines = []
+    for c in rows:
+        d = dict(c, eur=to_eur(c["amount"], c["currency"]))
+        d["attached"] = _cost_attached_label(c)
+        lines.append(d)
 
     by_cat, by_kind = {}, {"estimated": 0.0, "booked": 0.0, "actual": 0.0}
     for c in lines:
         by_cat[c["category"]] = by_cat.get(c["category"], 0.0) + c["eur"]
         by_kind[c["kind"]] += c["eur"]
     total = sum(by_kind.values())
-    legs_all = conn.execute(
-        "SELECT id, name FROM leg WHERE trip_id = ? ORDER BY seq",
-        (g.trip["id"],)).fetchall()
+    legs_all, ideas_all, transports_all = cost_attach_options(conn, tid)
+    edit_id = request.args.get("edit", type=int)
     return render_template(
         "costs.html", lines=lines, by_cat=by_cat, by_kind=by_kind, total=total,
-        categories=COST_CATEGORIES, legs=legs_all)
+        categories=COST_CATEGORIES, legs=legs_all, ideas=ideas_all,
+        transports=transports_all, edit_id=edit_id)
+
+
+def _validate_cost(form):
+    """Shared parse/validate for add + edit. Returns a dict of fields or None."""
+    label = form.get("label", "").strip()
+    try:
+        amount = float(form.get("amount", ""))
+    except ValueError:
+        return None
+    currency = form.get("currency", g.trip["currency"])
+    kind = form.get("kind", "estimated")
+    category = form.get("category", "other")
+    if not label or currency not in ("EUR", g.trip["currency"]) \
+            or kind not in ("estimated", "booked", "actual") \
+            or category not in COST_CATEGORIES:
+        return None
+    leg_id, idea_id, transport_id = parse_attach(form)
+    return {"label": label, "amount": amount, "currency": currency, "kind": kind,
+            "category": category, "leg_id": leg_id, "idea_id": idea_id,
+            "transport_id": transport_id}
 
 
 @app.route("/costs/add", methods=["POST"])
 def add_cost():
     conn = g.conn
-    label = request.form.get("label", "").strip()
-    try:
-        amount = float(request.form.get("amount", ""))
-    except ValueError:
-        return redirect(url_for("costs"))
-    currency = request.form.get("currency", g.trip["currency"])
-    kind = request.form.get("kind", "estimated")
-    category = request.form.get("category", "other")
-    leg_id = request.form.get("leg_id") or None
-    if not label or currency not in ("EUR", g.trip["currency"]) \
-            or kind not in ("estimated", "booked", "actual") \
-            or category not in COST_CATEGORIES:
+    nxt = request.form.get("next") or url_for("costs")
+    f = _validate_cost(request.form)
+    if f is None:
+        return redirect(nxt)
+    conn.execute(
+        "INSERT INTO cost (trip_id, label, amount, currency, kind, category, "
+        "leg_id, idea_id, transport_id) VALUES (?,?,?,?,?,?,?,?,?)",
+        (g.trip["id"], f["label"], f["amount"], f["currency"], f["kind"],
+         f["category"], f["leg_id"], f["idea_id"], f["transport_id"]))
+    event(f"{person_name()} added cost '{f['label']}' ({f['currency']} {f['amount']:,.0f})")
+    conn.commit()
+    return redirect(nxt)
+
+
+@app.route("/costs/<int:cost_id>/edit", methods=["POST"])
+def edit_cost(cost_id):
+    conn = g.conn
+    c = conn.execute("SELECT * FROM cost WHERE id = ? AND trip_id = ?",
+                     (cost_id, g.trip["id"])).fetchone()
+    if c is None:
+        abort(404)
+    f = _validate_cost(request.form)
+    if f is None:
         return redirect(url_for("costs"))
     conn.execute(
-        "INSERT INTO cost (trip_id, label, amount, currency, kind, category, leg_id) "
-        "VALUES (?,?,?,?,?,?,?)",
-        (g.trip["id"], label, amount, currency, kind, category, leg_id))
-    event(f"{person_name()} added cost '{label}' ({currency} {amount:,.0f})")
+        "UPDATE cost SET label=?, amount=?, currency=?, kind=?, category=?, "
+        "leg_id=?, idea_id=?, transport_id=? WHERE id=?",
+        (f["label"], f["amount"], f["currency"], f["kind"], f["category"],
+         f["leg_id"], f["idea_id"], f["transport_id"], cost_id))
+    event(f"{person_name()} edited cost '{f['label']}'")
     conn.commit()
     return redirect(url_for("costs"))
 
@@ -538,6 +741,46 @@ def toggle_task(task_id):
     return render_template("_task_item.html", t=t)
 
 
+def _task_or_404(task_id):
+    t = g.conn.execute("SELECT * FROM task WHERE id = ? AND trip_id = ?",
+                       (task_id, g.trip["id"])).fetchone()
+    if t is None:
+        abort(404)
+    return t
+
+
+@app.route("/tasks/<int:task_id>/view")
+def view_task(task_id):
+    """Render the task row in view mode (used by the edit form's Cancel)."""
+    return render_template("_task_item.html", t=_task_or_404(task_id))
+
+
+@app.route("/tasks/<int:task_id>/edit", methods=["GET", "POST"])
+def edit_task(task_id):
+    conn = g.conn
+    t = _task_or_404(task_id)
+    if request.method == "GET":
+        return render_template("_task_edit.html", t=t)
+    title = request.form.get("title", "").strip()
+    if not title:
+        return render_template("_task_item.html", t=t)
+    conn.execute("UPDATE task SET title = ? WHERE id = ?", (title, task_id))
+    event(f"{person_name()} edited a task to '{title}'")
+    conn.commit()
+    t = conn.execute("SELECT * FROM task WHERE id = ?", (task_id,)).fetchone()
+    return render_template("_task_item.html", t=t)
+
+
+@app.route("/tasks/<int:task_id>/delete", methods=["POST"])
+def delete_task(task_id):
+    conn = g.conn
+    t = _task_or_404(task_id)
+    conn.execute("DELETE FROM task WHERE id = ?", (task_id,))
+    event(f"{person_name()} deleted the task '{t['title']}'")
+    conn.commit()
+    return ""   # htmx swaps the row out
+
+
 # --- map ------------------------------------------------------------------
 
 @app.route("/map")
@@ -553,6 +796,115 @@ def trip_map():
     leg_data = [dict(l) for l in legs]
     idea_data = [dict(i) for i in ideas]
     return render_template("map.html", legs=leg_data, ideas=idea_data)
+
+
+# --- transport ------------------------------------------------------------
+
+def _validate_transport(form):
+    """Parse a transport form. Kind/status fall back to a valid default; every
+    other field is optional free text (None when blank). Timezone is a plain
+    label shown verbatim -- nothing is derived from it."""
+    kind = form.get("kind", "flight")
+    if kind not in TRANSPORT_KINDS:
+        kind = "flight"
+    status = form.get("status", "booked")
+    if status not in TRANSPORT_STATUSES:
+        status = "booked"
+    leg_id = form.get("leg_id") or None
+    if leg_id:
+        ok = g.conn.execute("SELECT 1 FROM leg WHERE id = ? AND trip_id = ?",
+                            (leg_id, g.trip["id"])).fetchone()
+        leg_id = int(leg_id) if ok else None
+
+    def clean(k):
+        return (form.get(k) or "").strip() or None
+
+    return {"kind": kind, "status": status, "leg_id": leg_id,
+            "from_place": clean("from_place"), "to_place": clean("to_place"),
+            "depart_date": clean("depart_date"), "depart_time": clean("depart_time"),
+            "depart_tz": clean("depart_tz"), "arrive_date": clean("arrive_date"),
+            "arrive_time": clean("arrive_time"), "arrive_tz": clean("arrive_tz"),
+            "provider": clean("provider"),
+            "confirmation_ref": clean("confirmation_ref"), "notes": clean("notes")}
+
+
+_TRANSPORT_COLS = ("leg_id", "kind", "from_place", "to_place", "depart_date",
+                   "depart_time", "depart_tz", "arrive_date", "arrive_time",
+                   "arrive_tz", "provider", "confirmation_ref", "status", "notes")
+
+
+@app.route("/transport")
+def transport():
+    conn = g.conn
+    rows = conn.execute(
+        "SELECT tr.*, l.name AS leg_name FROM transport tr "
+        "LEFT JOIN leg l ON l.id = tr.leg_id WHERE tr.trip_id = ? "
+        "ORDER BY tr.depart_date IS NULL, tr.depart_date, tr.depart_time, tr.id",
+        (g.trip["id"],)).fetchall()
+    legs_all = conn.execute(
+        "SELECT id, name FROM leg WHERE trip_id = ? ORDER BY seq",
+        (g.trip["id"],)).fetchall()
+    return render_template(
+        "transport.html", items=rows, legs=legs_all, kinds=TRANSPORT_KINDS,
+        statuses=TRANSPORT_STATUSES, tz_suggestions=TZ_SUGGESTIONS,
+        fmt_date=fmt_date)
+
+
+@app.route("/transport/add", methods=["POST"])
+def add_transport():
+    conn = g.conn
+    f = _validate_transport(request.form)
+    conn.execute(
+        "INSERT INTO transport (trip_id, " + ", ".join(_TRANSPORT_COLS) + ") "
+        "VALUES (?" + ",?" * len(_TRANSPORT_COLS) + ")",
+        (g.trip["id"], *[f[c] for c in _TRANSPORT_COLS]))
+    event(f"{person_name()} added transport "
+          f"({transport_label(f['kind'], f['from_place'], f['to_place'])})")
+    conn.commit()
+    return redirect(url_for("transport"))
+
+
+@app.route("/transport/<int:tr_id>", methods=["GET", "POST"])
+def transport_detail(tr_id):
+    conn = g.conn
+    tr = conn.execute("SELECT * FROM transport WHERE id = ? AND trip_id = ?",
+                      (tr_id, g.trip["id"])).fetchone()
+    if tr is None:
+        abort(404)
+    if request.method == "POST":
+        f = _validate_transport(request.form)
+        conn.execute(
+            "UPDATE transport SET " + ", ".join(f"{c}=?" for c in _TRANSPORT_COLS)
+            + " WHERE id = ?", (*[f[c] for c in _TRANSPORT_COLS], tr_id))
+        event(f"{person_name()} updated transport "
+              f"({transport_label(f['kind'], f['from_place'], f['to_place'])})")
+        conn.commit()
+        return redirect(url_for("transport_detail", tr_id=tr_id))
+    legs_all = conn.execute(
+        "SELECT id, name FROM leg WHERE trip_id = ? ORDER BY seq",
+        (g.trip["id"],)).fetchall()
+    cost_rows = conn.execute(
+        "SELECT * FROM cost WHERE transport_id = ? ORDER BY id", (tr_id,)).fetchall()
+    tr_costs = [dict(c, eur=to_eur(c["amount"], c["currency"])) for c in cost_rows]
+    return render_template(
+        "transport_detail.html", tr=tr, legs=legs_all, kinds=TRANSPORT_KINDS,
+        statuses=TRANSPORT_STATUSES, tz_suggestions=TZ_SUGGESTIONS,
+        tr_costs=tr_costs, categories=COST_CATEGORIES)
+
+
+@app.route("/transport/<int:tr_id>/delete", methods=["POST"])
+def delete_transport(tr_id):
+    conn = g.conn
+    tr = conn.execute("SELECT * FROM transport WHERE id = ? AND trip_id = ?",
+                      (tr_id, g.trip["id"])).fetchone()
+    if tr is None:
+        abort(404)
+    conn.execute("DELETE FROM cost WHERE transport_id = ?", (tr_id,))  # children first
+    conn.execute("DELETE FROM transport WHERE id = ?", (tr_id,))
+    event(f"{person_name()} deleted transport "
+          f"({transport_label(tr['kind'], tr['from_place'], tr['to_place'])})")
+    conn.commit()
+    return redirect(url_for("transport"))
 
 
 # --- trips (list / switch / create) ---------------------------------------
@@ -571,8 +923,64 @@ def trips():
                      if l["accommodation_status"] == "booked")
         trips_out.append(dict(t, total_nights=total, booked_nights=booked))
     active_id = g.trip["id"] if g.trip else None
+    edit_id = request.args.get("edit", type=int)
     return render_template("trips.html", trips=trips_out, active_id=active_id,
-                           fmt_date=fmt_date)
+                           edit_id=edit_id, fmt_date=fmt_date)
+
+
+@app.route("/trips/<int:trip_id>/edit", methods=["POST"])
+def edit_trip(trip_id):
+    conn = g.conn
+    t = conn.execute("SELECT * FROM trip WHERE id = ?", (trip_id,)).fetchone()
+    if t is None:
+        abort(404)
+    name = request.form.get("name", "").strip() or t["name"]
+    start = request.form.get("start_date", "").strip()
+    end = request.form.get("end_date", "").strip()
+    try:
+        d0, d1 = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError:
+        return redirect(url_for("trips"))
+    if d1 < d0:
+        return redirect(url_for("trips"))
+    currency = (request.form.get("currency", "EUR").strip().upper() or "EUR")
+    try:
+        fx = float(request.form.get("fx_to_eur", "") or t["fx_to_eur"])
+    except ValueError:
+        fx = t["fx_to_eur"]
+    budget_raw = request.form.get("budget_eur", "").strip()
+    try:
+        budget = float(budget_raw) if budget_raw else None
+    except ValueError:
+        budget = None
+    conn.execute(
+        "UPDATE trip SET name=?, start_date=?, end_date=?, currency=?, "
+        "fx_to_eur=?, budget_eur=? WHERE id=?",
+        (name, start, end, currency, fx, budget, trip_id))
+
+    # Resync day rows to the new range: add missing dates, drop out-of-range ones.
+    have = {r["date"] for r in conn.execute(
+        "SELECT date FROM day WHERE trip_id = ?", (trip_id,))}
+    want = set()
+    d = d0
+    while d <= d1:
+        want.add(d.isoformat())
+        d += timedelta(days=1)
+    for iso in sorted(want - have):
+        conn.execute("INSERT INTO day (trip_id, date) VALUES (?, ?)", (trip_id, iso))
+    for iso in sorted(have - want):
+        conn.execute("DELETE FROM day WHERE trip_id = ? AND date = ?", (trip_id, iso))
+    # An idea pinned to a date we just removed would dangle (pinned_date is free
+    # text, not a FK), so unpin anything now pointing at a non-existent day.
+    conn.execute(
+        "UPDATE idea SET pinned_date = NULL WHERE trip_id = ? AND pinned_date IS NOT NULL "
+        "AND pinned_date NOT IN (SELECT date FROM day WHERE trip_id = ?)",
+        (trip_id, trip_id))
+
+    db.log_event(conn, trip_id, g.person["id"] if g.person else None,
+                 f"{person_name()} edited the trip {name}")
+    conn.commit()
+    return redirect(url_for("trips"))
 
 
 @app.route("/trips/<int:trip_id>/switch", methods=["POST"])

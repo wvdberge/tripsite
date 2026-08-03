@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_transport_form.html" import transport_form %}
+{% block title %}{{ tr.kind }} {{ tr.from_place or '' }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('transport') }}">← Transport</a></p>
+<h1>{{ tr.kind|capitalize }}: {{ tr.from_place or '?' }} → {{ tr.to_place or '?' }}</h1>
+
+<div class="card">
+  <h2 style="margin-top:0">Edit</h2>
+  {{ transport_form(url_for('transport_detail', tr_id=tr.id), kinds, statuses,
+                    tz_suggestions, legs, tr=tr, submit_label='Save') }}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Costs</h2>
+  {% if tr_costs %}
+  <table>
+    <tbody>
+    {% for c in tr_costs %}
+    <tr>
+      <td>{{ c.label }}<div class="muted small">{{ c.category }} · {{ c.kind }}</div></td>
+      <td class="num">{{ c.currency }} {{ '%.0f'|format(c.amount) }}</td>
+      <td class="num">{{ c.eur|eur }}</td>
+      <td>
+        <form method="post" action="{{ url_for('delete_cost', cost_id=c.id) }}" class="inline"
+              onsubmit="return confirm('Remove this cost line?')">
+          <button class="danger small" type="submit">×</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form method="post" action="{{ url_for('add_cost') }}" style="margin-top:.5rem">
+    <input type="hidden" name="attach" value="transport:{{ tr.id }}">
+    <input type="hidden" name="next" value="{{ url_for('transport_detail', tr_id=tr.id) }}">
+    <input type="text" name="label" placeholder="Cost label (e.g. Flights AMS→CHC)" required>
+    <div class="row">
+      <div><label>Amount</label><input type="number" step="0.01" name="amount" required></div>
+      <div><label>Currency</label>
+        <select name="currency">
+          {% if trip.currency != 'EUR' %}<option>{{ trip.currency }}</option>{% endif %}
+          <option>EUR</option>
+        </select></div>
+      <div><label>Kind</label>
+        <select name="kind"><option>booked</option><option>estimated</option><option>actual</option></select></div>
+      <div><label>Category</label>
+        <select name="category">
+          {% for c in categories %}<option {{ 'selected' if c == 'transport' }}>{{ c }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <div style="margin-top:.5rem"><button type="submit">Add cost</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Delete this transport</h2>
+  <p class="muted small">Removes the segment and any cost lines attached to it. This can't be undone.</p>
+  <form method="post" action="{{ url_for('delete_transport', tr_id=tr.id) }}"
+        onsubmit="return confirm('Delete this transport and its costs? This cannot be undone.')">
+    <button class="danger" type="submit">Delete transport</button>
+  </form>
+</div>
+{% endblock %}

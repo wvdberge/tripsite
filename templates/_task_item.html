@@ -3,5 +3,13 @@
         hx-target="closest .task-item" hx-swap="outerHTML">
     <button class="ghost small" type="submit" title="Toggle">{{ '✓' if t.done else '☐' }}</button>
   </form>
-  <span>{{ t.title }}</span>
+  <span style="flex:1">{{ t.title }}</span>
+  <button class="ghost small" title="Edit"
+          hx-get="{{ url_for('edit_task', task_id=t.id) }}"
+          hx-target="closest .task-item" hx-swap="outerHTML">✎</button>
+  <form class="inline" hx-post="{{ url_for('delete_task', task_id=t.id) }}"
+        hx-target="closest .task-item" hx-swap="outerHTML"
+        hx-confirm="Delete this task?">
+    <button class="ghost small" type="submit" title="Delete">✕</button>
+  </form>
 </li>

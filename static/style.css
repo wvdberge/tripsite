@@ -140,3 +140,7 @@ ul.clean li:last-child { border-bottom: 0; }
   .topbar .brand { flex: 1 1 auto; min-width: 0; }
   .topbar nav { order: 1; flex-basis: 100%; gap: .5rem 1.1rem; }
 }
+
+/* compact link-buttons + highlighted inline-edit row */
+.btn.small { padding: .2rem .5rem; font-size: .8rem; }
+tr.editing { background: #fff7e6; }
